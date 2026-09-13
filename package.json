@@ -1,0 +1,14 @@
+{
+  "name": "companion-character-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A standalone SVG companion character motion study.",
+  "scripts": {
+    "test": "node --test tests/companion.test.cjs",
+    "check": "node --check src/math.js && node --check src/presets.js && node --check src/material.js && node --check src/character.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}

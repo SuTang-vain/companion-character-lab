@@ -1,0 +1,6 @@
+.DS_Store
+.artifacts/
+node_modules/
+coverage/
+*.log
+
