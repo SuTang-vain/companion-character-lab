@@ -109,6 +109,8 @@
       this.time = 0;
       this.blinkAt = Infinity;
       this.blinkStart = -100;
+      this.blinkDuration = 0.22;
+      this.blinkCount = 0;
       this.bounceAt = -100;
       this.morph = spring(1);
       this.eyeMorph = spring(1);
@@ -190,6 +192,8 @@
       for (const [key, value] of Object.entries(this.values)) value.t = preset[key];
       this.blinkStart = -100;
       this.blinkAt = this.time + delayFor(preset.blink, true);
+      this.blinkDuration = 0.22;
+      this.blinkCount = 0;
       if (name === "sleeping") {
         this.gazeX.x = this.gazeX.t = this.gazeX.v = 0;
         this.gazeY.x = this.gazeY.t = this.gazeY.v = 0;
@@ -312,7 +316,10 @@
       const preset = states[this.state];
       if (this.time >= this.blinkAt && preset.blink && this.state !== "sleeping") {
         this.blinkStart = this.time;
-        this.blinkAt = this.time + delayFor(preset.blink);
+        this.blinkCount += 1;
+        this.blinkDuration = this.blinkCount % 3 === 1 ? 0.17 : this.blinkCount % 3 === 2 ? 0.26 : 0.22;
+        const burst = preset.blinkBurst && this.blinkCount % preset.blinkBurst === 0;
+        this.blinkAt = this.time + (burst ? 0.34 : delayFor(preset.blink));
       }
       this.advanceBehavior(preset);
       const poseFollow = preset.gesture?.type === "thinking" ? (preset.gesture.gazeFollow || .68) : 0;
@@ -345,6 +352,10 @@
       const gesture = p.gesture || {};
       const gestureTime = still ? 0 : this.stateTime;
       const gestureWave = Math.sin(gestureTime * (gesture.rate || 1));
+      const actionEase = value => {
+        const t = clamp(value, 0, 1);
+        return t * t * (3 - 2 * t);
+      };
       let actionX = 0, actionY = 0, actionRoll = 0, actionSkew = 0;
       let actionScaleX = 0, actionScaleY = 0;
       if (!still) {
@@ -378,14 +389,13 @@
           const prepEnd = gesture.prep || .18;
           const launchEnd = prepEnd + (gesture.launch || .28);
           const settleStart = duration - (gesture.settle || .52);
-          const smooth = value => value * value * (3 - 2 * value);
           if (gestureTime < prepEnd) {
-            const prep = smooth(gestureTime / prepEnd);
+            const prep = actionEase(gestureTime / prepEnd);
             actionX = -2.2 * prep * strength;
             actionScaleX = -.018 * prep * strength;
             actionScaleY = .012 * prep * strength;
           } else if (gestureTime < launchEnd) {
-            const launch = smooth((gestureTime - prepEnd) / (launchEnd - prepEnd));
+            const launch = actionEase((gestureTime - prepEnd) / (launchEnd - prepEnd));
             actionX = (-2.2 + (gesture.thrust || 0) * launch) * strength;
             actionY = -(gesture.lift || 0) * launch * strength;
             actionRoll = -(gesture.tilt || 0) * launch * strength;
@@ -393,7 +403,7 @@
             actionScaleX = .075 * launch * strength;
             actionScaleY = -.045 * launch * strength;
           } else if (gestureTime < settleStart) {
-            const flight = 1 - smooth((gestureTime - launchEnd) / Math.max(.01, settleStart - launchEnd));
+            const flight = 1 - actionEase((gestureTime - launchEnd) / Math.max(.01, settleStart - launchEnd));
             actionX = (gesture.thrust || 0) * (.18 + .82 * flight) * strength;
             actionY = -(gesture.lift || 0) * flight * strength;
             actionRoll = -(gesture.tilt || 0) * flight * strength;
@@ -401,7 +411,7 @@
             actionScaleX = .075 * flight * strength;
             actionScaleY = -.045 * flight * strength;
           } else if (gestureTime < duration) {
-            const rebound = 1 - smooth((gestureTime - settleStart) / Math.max(.01, duration - settleStart));
+            const rebound = 1 - actionEase((gestureTime - settleStart) / Math.max(.01, duration - settleStart));
             actionX = (gesture.thrust || 0) * .18 * rebound * strength;
             actionY = -(gesture.lift || 0) * .16 * rebound * strength;
             actionRoll = -(gesture.tilt || 0) * .18 * rebound * strength;
@@ -442,17 +452,59 @@
       this.shadow.setAttribute("rx", (62 + hop * 0.6 + Math.abs(actionX) * .35).toFixed(2));
       this.material.paint(v.glow.x, t, strength, this.surface, this.state, this.stateTime, p.gesture);
       const blinkAge = this.time - this.blinkStart;
-      const blink = !still && blinkAge >= 0 && blinkAge < 0.22
-        ? Math.max(0.08, 1 - Math.sin(blinkAge / 0.22 * Math.PI)) : 1;
+      const blinkAt = (offset = 0) => {
+        const age = blinkAge - offset;
+        return !still && age >= 0 && age < this.blinkDuration
+          ? Math.max(0.06, 1 - Math.sin(age / this.blinkDuration * Math.PI)) : 1;
+      };
       const morph = clamp(this.morph.x, 0, 1);
       const gazeX = still ? 0 : this.gazeX.x + this.behaviorGazeX.x;
       const gazeY = still ? 0 : this.gazeY.x + this.behaviorGazeY.x;
+      let attentionX = 0;
+      let attentionY = 0;
+      if (!still && p.gesture?.type === "writing") {
+        const cycle = p.gesture.cycle || 1.8;
+        const cyclePhase = (this.stateTime % cycle) / cycle;
+        const strokeEnd = p.gesture.stroke || .64;
+        const strokePhase = cyclePhase < strokeEnd ? cyclePhase / strokeEnd : 1;
+        const penX = 144 + strokePhase * 68;
+        const penY = 174 + Math.sin(strokePhase * Math.PI * 2) * 5;
+        attentionX = clamp((penX - 166) * .075, -2.4, 3.4);
+        attentionY = clamp((penY - 174) * .14, -1.4, 1.4);
+      } else if (!still && p.gesture?.type === "sending") {
+        const launchProgress = clamp((this.stateTime - (p.gesture.prep || .18)) / .72, 0, 1);
+        const launchFocus = actionEase(launchProgress);
+        attentionX = launchFocus * 3.8;
+        attentionY = -launchFocus * 2.5;
+      }
       const eyes = this.currentEyePolys();
       const eyeOpacity = Math.max(0, 1 - (this.material.formBlend || 0) * 1.7);
+      const eyeMotion = p.eyeMotion || {};
+      const eyeDrift = eyeMotion.drift || [0, 0];
+      const speed = eyeMotion.speed || 0;
+      const phase = eyeMotion.phase || 0;
+      const waveX = still ? 0 : Math.sin(t * speed + phase) * eyeDrift[0]
+        + Math.sin(t * speed * 1.73 + phase * 1.6) * eyeDrift[0] * .28;
+      const waveY = still ? 0 : Math.cos(t * speed * .83 + phase) * eyeDrift[1]
+        + Math.sin(t * speed * 1.31 + phase * .7) * eyeDrift[1] * .24;
+      const gazeNormX = clamp(gazeX / 7, -1, 1);
+      const vergence = eyeMotion.vergence || 0;
+      const scale = eyeMotion.scale || [0, 0];
       this.eyeEls.forEach((eye, i) => {
+        const side = i === 0 ? -1 : 1;
+        const localX = (i === 0 ? 91 : 160) + p.gaze[0] + (gazeX + attentionX) * (i === 0 ? .96 : 1.04)
+          + waveX * (i === 0 ? .86 : 1.08) + side * gazeNormX * vergence;
+        const localY = 133 + p.gaze[1] + (gazeY + attentionY) * (i === 0 ? .98 : 1.02)
+          + waveY * (i === 0 ? 1.04 : .9);
+        const pulse = still ? 0 : Math.sin(t * (speed * .74 + .55) + phase + i * .65);
+        const scaleX = 1 + pulse * (scale[0] || 0);
+        const scaleY = 1 + Math.cos(t * (speed * .68 + .48) + phase + i * .45) * (scale[1] || 0);
+        const roll = still ? 0 : ((gazeX + attentionX) * .09 + (gazeY + attentionY) * .12)
+          + Math.sin(t * speed * .9 + phase + i) * (eyeMotion.tilt || 0);
+        const blink = blinkAt(i === 0 ? 0 : .016);
         eye.setAttribute("d", polyPath(eyes[i]));
         eye.setAttribute("opacity", eyeOpacity.toFixed(3));
-        eye.setAttribute("transform", `translate(${(i === 0 ? 91 : 160) + p.gaze[0] + gazeX} ${133 + p.gaze[1] + gazeY}) scale(1 ${blink})`);
+        eye.setAttribute("transform", `translate(${localX.toFixed(3)} ${localY.toFixed(3)}) rotate(${roll.toFixed(3)}) scale(${scaleX.toFixed(4)} ${(scaleY * blink).toFixed(4)})`);
       });
     }
 

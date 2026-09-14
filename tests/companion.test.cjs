@@ -372,6 +372,30 @@ test("reduced motion settles behavior eyes and gaze without scheduling playback"
   bot.destroy();
 });
 
+test("eyes combine independent micro-motion, expressive forms and stable action focus", () => {
+  const env = environment(), bot = env.create({ quality: "rich", state: "curious" });
+  const transformAt = () => bot.eyeEls.map(eye => eye.attributes.transform);
+  const initial = transformAt();
+  for (let i = 0; i < 36; i++) env.frame(16.667);
+  const moving = transformAt();
+  assert.notDeepEqual(moving, initial);
+  assert.notEqual(moving[0], moving[1]);
+
+  bot.setState("sending");
+  for (let i = 0; i < 18; i++) env.frame(16.667);
+  const focused = transformAt();
+  assert.ok(focused.every(value => /translate\([^)]* [^)]*\) rotate\([^)]*\) scale\([^)]*\)/.test(value)));
+  assert.ok(focused.every(value => !/NaN|Infinity/.test(value)));
+  assert.notDeepEqual(focused, moving);
+
+  bot.setState("curious");
+  bot.setPaused(true);
+  const paused = transformAt();
+  for (let i = 0; i < 60; i++) env.frame(16.667);
+  assert.deepEqual(transformAt(), paused);
+  bot.destroy();
+});
+
 test("semantic state overlays stay sparse and freeze with reduced motion", () => {
   const env = environment(), bot = env.create({ quality: "balanced", state: "thinking" });
   const semantic = bot.material.semantic;
