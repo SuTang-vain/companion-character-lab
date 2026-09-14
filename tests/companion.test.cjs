@@ -396,6 +396,31 @@ test("eyes combine independent micro-motion, expressive forms and stable action 
   bot.destroy();
 });
 
+test("state changes ease gaze offsets and gesture entry instead of snapping", () => {
+  const env = environment(), bot = env.create({ quality: "rich", state: "idle" });
+  const before = bot.eyeEls.map(eye => eye.attributes.transform);
+  bot.setState("curious");
+
+  assert.equal(bot.gazeBaseX.x, 0);
+  assert.equal(bot.gazeBaseX.t, 3);
+  assert.equal(bot.stateBlend.x, 0);
+  assert.deepEqual(bot.eyeEls.map(eye => eye.attributes.transform), before);
+
+  env.frame(16.667);
+  env.frame(16.667);
+  assert.ok(bot.gazeBaseX.x > 0 && bot.gazeBaseX.x < 3);
+  assert.ok(bot.stateBlend.x > 0 && bot.stateBlend.x < 1);
+
+  bot.setState("thinking");
+  const entry = bot.group.attributes.transform;
+  assert.equal(bot.stateBlend.x, 0);
+  assert.equal(bot.stateBlend.t, 1);
+  env.frame(16.667);
+  assert.notEqual(bot.group.attributes.transform, entry);
+  assert.ok(bot.stateBlend.x > 0 && bot.stateBlend.x < 1);
+  bot.destroy();
+});
+
 test("semantic state overlays stay sparse and freeze with reduced motion", () => {
   const env = environment(), bot = env.create({ quality: "balanced", state: "thinking" });
   const semantic = bot.material.semantic;

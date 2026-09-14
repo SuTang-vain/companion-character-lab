@@ -1,6 +1,6 @@
 /* One clock and one set of global listeners serve every mounted companion. */
 (function (g) {
-  const { spring, stepSpring, springSteps, clamp, lerpPoly, polyPath } = g.GROK_MATH;
+  const { spring, stepSpring, springSteps, clamp, lerp, lerpPoly, polyPath } = g.GROK_MATH;
   const { states, eyeForms } = g.COMPANION_PRESETS;
   const NS = "http://www.w3.org/2000/svg";
   const instances = new Set();
@@ -116,13 +116,17 @@
       this.eyeMorph = spring(1);
       this.gazeX = spring(0);
       this.gazeY = spring(0);
+      this.gazeBaseX = spring(0);
+      this.gazeBaseY = spring(0);
       this.behaviorGazeX = spring(0);
       this.behaviorGazeY = spring(0);
       this.poseFollowX = spring(0);
       this.poseFollowY = spring(0);
+      this.stateBlend = spring(1);
       this.values = Object.fromEntries(["x", "roll", "y", "left", "right", "scaleX", "scaleY", "skew", "glow"].map(key => [key, spring(key === "scaleX" || key === "scaleY" ? 1 : 0)]));
       this.state = states[options.state] ? options.state : "idle";
       this.fromEyes = states[this.state].eyes;
+      this.eyeMotionFrom = states[this.state].eyeMotion || {};
       this.eyeFrom = states[this.state].eyes;
       this.eyeTo = states[this.state].eyes;
       this.eyeSequence = [states[this.state].eye];
@@ -164,6 +168,7 @@
     setState(name, immediate = false) {
       if (this.destroyed || !states[name]) return false;
       const currentEyes = this.currentEyePolys();
+      const previousPreset = states[this.state];
       const changed = name !== this.state;
       if (changed) this.bounceAt = -100;
       this.state = name;
@@ -172,6 +177,7 @@
       this.svg.setAttribute("aria-label", `Companion · ${preset.label}`);
       this.svg.dataset.state = name;
       this.fromEyes = currentEyes;
+      this.eyeMotionFrom = previousPreset.eyeMotion || {};
       this.morph.x = 0;
       this.morph.v = 0;
       this.morph.t = 1;
@@ -185,18 +191,25 @@
       this.eyeNextAt = this.time + delayFor(preset.eyeHold, true);
       this.gazeIndex = 0;
       this.gazeNextAt = this.time + (preset.gazeMotion?.targets?.length > 1 ? 0.35 : Infinity);
-      this.behaviorGazeX.x = this.behaviorGazeX.t = this.behaviorGazeX.v = 0;
-      this.behaviorGazeY.x = this.behaviorGazeY.t = this.behaviorGazeY.v = 0;
-      this.poseFollowX.x = this.poseFollowX.t = this.poseFollowX.v = 0;
-      this.poseFollowY.x = this.poseFollowY.t = this.poseFollowY.v = 0;
+      this.gazeBaseX.t = preset.gaze?.[0] || 0;
+      this.gazeBaseY.t = preset.gaze?.[1] || 0;
+      this.behaviorGazeX.t = 0;
+      this.behaviorGazeY.t = 0;
+      this.poseFollowX.t = 0;
+      this.poseFollowY.t = 0;
+      if (changed) {
+        this.stateBlend.x = 0;
+        this.stateBlend.v = 0;
+        this.stateBlend.t = 1;
+      }
       for (const [key, value] of Object.entries(this.values)) value.t = preset[key];
       this.blinkStart = -100;
       this.blinkAt = this.time + delayFor(preset.blink, true);
       this.blinkDuration = 0.22;
       this.blinkCount = 0;
       if (name === "sleeping") {
-        this.gazeX.x = this.gazeX.t = this.gazeX.v = 0;
-        this.gazeY.x = this.gazeY.t = this.gazeY.v = 0;
+        this.gazeX.t = 0;
+        this.gazeY.t = 0;
       }
       if (changed && name === "happy" && !this.reduced && !this.paused) this.play("bounce");
       if (immediate || this.reduced || this.static || this.paused) {
@@ -210,6 +223,10 @@
 
     settle() {
       for (const s of [this.morph, this.eyeMorph, this.behaviorGazeX, this.behaviorGazeY, this.poseFollowX, this.poseFollowY, ...Object.values(this.values)]) {
+        s.x = s.t;
+        s.v = 0;
+      }
+      for (const s of [this.gazeBaseX, this.gazeBaseY, this.stateBlend]) {
         s.x = s.t;
         s.v = 0;
       }
@@ -329,9 +346,12 @@
       for (let i = 0; i < steps; i++) {
         stepSpring(this.morph, 13, 1, dt / steps);
         stepSpring(this.eyeMorph, 9, 0.92, dt / steps);
+        stepSpring(this.stateBlend, 8, 1, dt / steps);
         for (const value of Object.values(this.values)) stepSpring(value, 11, 1, dt / steps);
         stepSpring(this.gazeX, 13, 1, dt / steps);
         stepSpring(this.gazeY, 13, 1, dt / steps);
+        stepSpring(this.gazeBaseX, 9, 1, dt / steps);
+        stepSpring(this.gazeBaseY, 9, 1, dt / steps);
         stepSpring(this.behaviorGazeX, 10, 0.95, dt / steps);
         stepSpring(this.behaviorGazeY, 10, 0.95, dt / steps);
         stepSpring(this.poseFollowX, 5.5, 1, dt / steps);
@@ -421,6 +441,13 @@
           }
         }
       }
+      const transitionBlend = still ? 0 : actionEase(this.stateBlend.x);
+      actionX *= transitionBlend;
+      actionY *= transitionBlend;
+      actionRoll *= transitionBlend;
+      actionSkew *= transitionBlend;
+      actionScaleX *= transitionBlend;
+      actionScaleY *= transitionBlend;
       const elapsed = this.time - this.bounceAt;
       // A short anticipation and landing keep the one-shot bounce from snapping.
       let hop = 0, bounceSquash = 0;
@@ -460,6 +487,8 @@
       const morph = clamp(this.morph.x, 0, 1);
       const gazeX = still ? 0 : this.gazeX.x + this.behaviorGazeX.x;
       const gazeY = still ? 0 : this.gazeY.x + this.behaviorGazeY.x;
+      const baseGazeX = still ? p.gaze?.[0] || 0 : this.gazeBaseX.x;
+      const baseGazeY = still ? p.gaze?.[1] || 0 : this.gazeBaseY.x;
       let attentionX = 0;
       let attentionY = 0;
       if (!still && p.gesture?.type === "writing") {
@@ -477,30 +506,43 @@
         attentionX = launchFocus * 3.8;
         attentionY = -launchFocus * 2.5;
       }
+      attentionX *= transitionBlend;
+      attentionY *= transitionBlend;
       const eyes = this.currentEyePolys();
       const eyeOpacity = Math.max(0, 1 - (this.material.formBlend || 0) * 1.7);
-      const eyeMotion = p.eyeMotion || {};
-      const eyeDrift = eyeMotion.drift || [0, 0];
-      const speed = eyeMotion.speed || 0;
-      const phase = eyeMotion.phase || 0;
-      const waveX = still ? 0 : Math.sin(t * speed + phase) * eyeDrift[0]
-        + Math.sin(t * speed * 1.73 + phase * 1.6) * eyeDrift[0] * .28;
-      const waveY = still ? 0 : Math.cos(t * speed * .83 + phase) * eyeDrift[1]
-        + Math.sin(t * speed * 1.31 + phase * .7) * eyeDrift[1] * .24;
+      const fromMotion = this.eyeMotionFrom || {};
+      const toMotion = p.eyeMotion || {};
+      const motionMix = still ? 1 : transitionBlend;
+      const fromDrift = fromMotion.drift || [0, 0];
+      const toDrift = toMotion.drift || [0, 0];
+      const driftX = lerp(fromDrift[0] || 0, toDrift[0] || 0, motionMix);
+      const driftY = lerp(fromDrift[1] || 0, toDrift[1] || 0, motionMix);
+      const speed = lerp(fromMotion.speed || 0, toMotion.speed || 0, motionMix);
+      const phase = lerp(fromMotion.phase || 0, toMotion.phase || 0, motionMix);
+      const tilt = lerp(fromMotion.tilt || 0, toMotion.tilt || 0, motionMix);
+      const fromScale = fromMotion.scale || [0, 0];
+      const toScale = toMotion.scale || [0, 0];
+      const scale = [
+        lerp(fromScale[0] || 0, toScale[0] || 0, motionMix),
+        lerp(fromScale[1] || 0, toScale[1] || 0, motionMix),
+      ];
+      const vergence = lerp(fromMotion.vergence || 0, toMotion.vergence || 0, motionMix);
+      const waveX = still ? 0 : Math.sin(t * speed + phase) * driftX
+        + Math.sin(t * speed * 1.73 + phase * 1.6) * driftX * .28;
+      const waveY = still ? 0 : Math.cos(t * speed * .83 + phase) * driftY
+        + Math.sin(t * speed * 1.31 + phase * .7) * driftY * .24;
       const gazeNormX = clamp(gazeX / 7, -1, 1);
-      const vergence = eyeMotion.vergence || 0;
-      const scale = eyeMotion.scale || [0, 0];
       this.eyeEls.forEach((eye, i) => {
         const side = i === 0 ? -1 : 1;
-        const localX = (i === 0 ? 91 : 160) + p.gaze[0] + (gazeX + attentionX) * (i === 0 ? .96 : 1.04)
+        const localX = (i === 0 ? 91 : 160) + baseGazeX + (gazeX + attentionX) * (i === 0 ? .96 : 1.04)
           + waveX * (i === 0 ? .86 : 1.08) + side * gazeNormX * vergence;
-        const localY = 133 + p.gaze[1] + (gazeY + attentionY) * (i === 0 ? .98 : 1.02)
+        const localY = 133 + baseGazeY + (gazeY + attentionY) * (i === 0 ? .98 : 1.02)
           + waveY * (i === 0 ? 1.04 : .9);
         const pulse = still ? 0 : Math.sin(t * (speed * .74 + .55) + phase + i * .65);
         const scaleX = 1 + pulse * (scale[0] || 0);
         const scaleY = 1 + Math.cos(t * (speed * .68 + .48) + phase + i * .45) * (scale[1] || 0);
-        const roll = still ? 0 : ((gazeX + attentionX) * .09 + (gazeY + attentionY) * .12)
-          + Math.sin(t * speed * .9 + phase + i) * (eyeMotion.tilt || 0);
+        const roll = still ? 0 : (gazeX + attentionX) * .09 + (gazeY + attentionY) * .12
+          + Math.sin(t * speed * .9 + phase + i) * tilt;
         const blink = blinkAt(i === 0 ? 0 : .016);
         eye.setAttribute("d", polyPath(eyes[i]));
         eye.setAttribute("opacity", eyeOpacity.toFixed(3));
