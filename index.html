@@ -38,20 +38,20 @@ button:disabled{opacity:.4;cursor:not-allowed}
     <section class="workspace" id="workspace"><div class="stage" id="stage"><svg id="companion"></svg><div class="stage-meta"><div><span class="status-dot"></span><span id="playback-status">LIVE</span><strong id="state-label">安静</strong></div><div id="size-label">280px</div></div></div></section>
   </main>
   <aside class="inspector">
-    <section class="panel"><h2>Render quality</h2><div class="choice-row" id="quality"><button data-quality="minimal">Minimal</button><button data-quality="balanced" aria-pressed="true">Balanced</button><button data-quality="rich">Rich</button></div></section>
-    <section class="panel"><h2>Motion</h2><div class="field"><span>Pointer gaze</span><button class="switch" id="follow" aria-pressed="true" aria-label="Pointer gaze"></button></div><div class="field"><span>Reduced motion</span><button class="switch" id="reduced" aria-pressed="false" aria-label="Reduced motion"></button></div><div class="field"><label for="intensity">Intensity</label><output id="intensity-value" for="intensity">70%</output></div><input class="range" id="intensity" type="range" min="0" max="100" value="70"><div class="surface"><span>Surface</span><div class="choice-row" id="surface"><button data-surface="light" aria-pressed="true">Light</button><button data-surface="dark">Dark</button></div></div></section>
+    <section class="panel"><h2>Render quality</h2><div class="choice-row" id="quality"><button data-quality="minimal">Minimal</button><button data-quality="balanced">Balanced</button><button data-quality="rich" aria-pressed="true">Rich</button></div></section>
+    <section class="panel"><h2>Motion</h2><div class="field"><span>Pointer gaze</span><button class="switch" id="follow" aria-pressed="true" aria-label="Pointer gaze"></button></div><div class="field"><span>Reduced motion</span><button class="switch" id="reduced" aria-pressed="false" aria-label="Reduced motion"></button></div><div class="field"><label for="intensity">Intensity</label><output id="intensity-value" for="intensity">62%</output></div><input class="range" id="intensity" type="range" min="0" max="100" value="62"><div class="surface"><span>Surface</span><div class="choice-row" id="surface"><button data-surface="light" aria-pressed="true">Light</button><button data-surface="dark">Dark</button></div></div></section>
     <section class="panel"><h2>Preview sizes</h2><div class="mini-grid" id="sizes"><button class="mini" data-size="64"><svg viewBox="0 0 256 256"><path d="M57 112C51 92 43 48 48 35C52 24 86 44 112 66L142 66C163 46 192 28 198 36C204 47 197 94 191 113L202 187C200 215 180 225 133 225C86 225 55 216 50 192C46 171 53 145 52 119Z" fill="#151719"/><circle cx="91" cy="133" r="13" fill="#fff"/><circle cx="160" cy="133" r="13" fill="#fff"/></svg><span>64px</span></button><button class="mini" data-size="160"><svg viewBox="0 0 256 256"><path d="M57 112C51 92 43 48 48 35C52 24 86 44 112 66L142 66C163 46 192 28 198 36C204 47 197 94 191 113L202 187C200 215 180 225 133 225C86 225 55 216 50 192C46 171 53 145 52 119Z" fill="#151719"/><circle cx="91" cy="133" r="13" fill="#fff"/><circle cx="160" cy="133" r="13" fill="#fff"/></svg><span>160px</span></button><button class="mini" data-size="280" aria-pressed="true"><svg viewBox="0 0 256 256"><path d="M57 112C51 92 43 48 48 35C52 24 86 44 112 66L142 66C163 46 192 28 198 36C204 47 197 94 191 113L202 187C200 215 180 225 133 225C86 225 55 216 50 192C46 171 53 145 52 119Z" fill="#151719"/><circle cx="91" cy="133" r="13" fill="#fff"/><circle cx="160" cy="133" r="13" fill="#fff"/></svg><span>280px</span></button></div></section>
     <section class="panel"><button class="btn" id="export">导出当前 SVG</button></section>
   </aside>
 </div>
 <script src="src/math.js"></script><script src="src/presets.js"></script><script src="src/material.js"></script><script src="src/character.js"></script>
 <script>
-const bot = new Companion(document.getElementById("companion"), { state: "idle", size: 280 });
+const bot = new Companion(document.getElementById("companion"), { state: "idle", size: 280, quality: "rich", intensity: 0.62 });
 const thumbnails = [...document.querySelectorAll(".mini svg, .brand-icon")].map(svg =>
   new Companion(svg, { size: svg.classList.contains("brand-icon") ? 28 : 56, static: true, quality: "minimal" }));
 const $ = id => document.getElementById(id);
 const motionPreference = matchMedia("(prefers-reduced-motion: reduce)");
-const initial = { state: "idle", size: 280, intensity: 0.7, quality: "balanced", surface: "light" };
+const initial = { state: "idle", size: 280, intensity: 0.62, quality: "rich", surface: "light" };
 const stage = $("stage");
 const workspace = $("workspace");
 function syncControls() {
@@ -93,10 +93,10 @@ $("reset").onclick = () => {
   thumbnails.forEach(item => item.setState(initial.state, true));
   $("state-label").textContent = COMPANION_PRESETS.states.idle.label;
   $("size-label").textContent = "280px";
-  $("intensity").value = 70;
-  $("intensity-value").textContent = "70%";
+  $("intensity").value = 62;
+  $("intensity-value").textContent = "62%";
   $("states").querySelectorAll("button").forEach(item => item.setAttribute("aria-pressed", item.dataset.state === "idle"));
-  document.querySelectorAll("[data-quality]").forEach(item => item.setAttribute("aria-pressed", item.dataset.quality === "balanced"));
+  document.querySelectorAll("[data-quality]").forEach(item => item.setAttribute("aria-pressed", item.dataset.quality === "rich"));
   document.querySelectorAll("[data-size]").forEach(item => item.setAttribute("aria-pressed", item.dataset.size === "280"));
   document.querySelectorAll("[data-surface]").forEach(item => item.setAttribute("aria-pressed", item.dataset.surface === "light"));
   syncControls();

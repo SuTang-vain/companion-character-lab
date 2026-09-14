@@ -139,7 +139,9 @@
   const INK_RING = alignRing(centerRing(resampleRing(flattenPath(
     "M-7 8C-3 12 3 12 8 7L23 -28C25 -34 20 -41 14 -39L-5 2Z", 3,
   )), 128, 132), SOURCE_RING);
-  const CORE_RING = alignRing(ellipseRing(128, 132, 25, 21), SOURCE_RING);
+  // A slightly asymmetric core reads as a launched object instead of a floating pill.
+  const CORE_PATH = "M-28 1C-18 -16 -2 -25 15 -20C28 -16 34 -7 29 2C22 17 6 25 -11 20C-23 16 -30 9 -28 1Z";
+  const CORE_RING = alignRing(centerRing(resampleRing(flattenPath(CORE_PATH, 3)), 128, 132), SOURCE_RING);
 
   function pathFromPoints(points) {
     if (!points.length) return "M0 0";
@@ -455,18 +457,18 @@
 
       this.writingForm = node("g", { opacity: "0", "data-form": "writing-ink" }, this.actionForm);
       this.writingCore = node("path", {
-        d: "M-7 8C-3 12 3 12 8 7L23 -28C25 -34 20 -41 14 -39L-5 2Z", fill: ref("shell"),
+        d: "M-10 9C-4 15 4 14 10 6L27 -30C30 -38 24 -47 15 -44L-8 0Z", fill: ref("shell"),
       }, this.writingForm);
       this.writingCoreTip = node("path", {
-        d: "M-7 8L-1 19L8 7Z", fill: "#f0a8cd",
+        d: "M-10 9L-2 22L10 6Z", fill: "#f0a8cd",
       }, this.writingForm);
       this.writingCoreShine = node("path", {
-        d: "M8 -14L13 -12", fill: "none", stroke: "#fff", "stroke-width": "1.4", "stroke-linecap": "round", opacity: ".68",
+        d: "M8 -16L15 -13", fill: "none", stroke: "#fff", "stroke-width": "1.4", "stroke-linecap": "round", opacity: ".68",
       }, this.writingForm);
 
       this.sendingForm = node("g", { opacity: "0", "data-form": "sending-core" }, this.actionForm);
       this.sendingCore = node("path", {
-        d: "M-21 0C-21 -13 -12 -21 1 -21C14 -21 22 -13 22 0C22 13 14 21 1 21C-12 21 -21 13 -21 0Z", fill: ref("shell"),
+        d: "M-28 1C-18 -16 -2 -25 15 -20C28 -16 34 -7 29 2C22 17 6 25 -11 20C-23 16 -30 9 -28 1Z", fill: ref("shell"),
       }, this.sendingForm);
       this.sendingCoreShine = node("path", {
         d: "M-2 -3C4 -5 9 -3 12 0", fill: "none", stroke: "#8eebdf", "stroke-width": "1.6", "stroke-linecap": "round", opacity: ".7",
@@ -589,8 +591,8 @@
 
     writingPoint(progress, cyclePhase) {
       return {
-        x: 150 + progress * 52,
-        y: 173 + Math.sin(progress * Math.PI * 2) * 4 + Math.sin(cyclePhase * Math.PI * 2) * 1.2,
+        x: 144 + progress * 68,
+        y: 174 + Math.sin(progress * Math.PI * 2) * 5 + Math.sin(cyclePhase * Math.PI * 2) * 1.4,
       };
     }
 
@@ -607,7 +609,7 @@
       if (!penDown) return;
       this.writingSamples.push({ x: point.x, y: point.y, t: stateTime, speed: this.writingSpeed });
       while (this.writingSamples.length > 1
-        && (stateTime - this.writingSamples[0].t > .72 || this.writingSamples.length > 42)) {
+        && (stateTime - this.writingSamples[0].t > .92 || this.writingSamples.length > 56)) {
         this.writingSamples.shift();
       }
     }
@@ -689,10 +691,10 @@
           (132 + (point.y - 132) * anchor) - 132,
         );
         targetOpacity = blend * .94;
-        this.writingForm.setAttribute("opacity", (blend * (.14 + strokePulse * .08) * detailMix).toFixed(3));
+        this.writingForm.setAttribute("opacity", (blend * (.28 + strokePulse * .12) * detailMix).toFixed(3));
         this.writingForm.setAttribute(
           "transform",
-          `translate(${point.x.toFixed(2)} ${point.y.toFixed(2)}) rotate(${(-6 + Math.sin(strokePhase * Math.PI * 2) * 5).toFixed(2)}) scale(1.34)`,
+          `translate(${point.x.toFixed(2)} ${point.y.toFixed(2)}) rotate(${(-6 + Math.sin(strokePhase * Math.PI * 2) * 5).toFixed(2)}) scale(1.22)`,
         );
       } else if (gesture.form === "launch-core") {
         const duration = gesture.duration || 1.55;
@@ -794,35 +796,35 @@
         }
         const trail = this.writingSamples.length ? this.writingSamples : [{ ...point, t: stateTime, speed: 0 }];
         const trailAge = trail.length ? stateTime - trail[0].t : 0;
-        const tailFade = penDown ? 1 : clamp(1 - (trailAge - .2) / .48);
-        const energy = clamp(.28 + this.writingSpeed * .92) * tailFade;
+        const tailFade = penDown ? 1 : clamp(1 - (trailAge - .24) / .68);
+        const energy = clamp(.36 + this.writingSpeed * 1.12) * tailFade;
         const previous = trail[Math.max(0, trail.length - 2)] || trail[0];
         const tangent = Math.atan2(point.y - previous.y, point.x - previous.x) * 180 / Math.PI;
         this.writingStroke.setAttribute("d", pathFromPoints(trail));
-        this.writingStroke.setAttribute("stroke-width", (2.75 + this.writingSpeed * 2.2).toFixed(2));
+        this.writingStroke.setAttribute("stroke-width", (3.15 + this.writingSpeed * 2.7).toFixed(2));
         this.writingStroke.setAttribute("stroke-dasharray", penDown ? "0.7 0.3" : "0.46 0.54");
         this.writingStroke.setAttribute("pathLength", "1");
         this.writingStroke.setAttribute("opacity", (energy * (1 - this.formBlend * .42) * entry).toFixed(3));
         this.writingTrace.setAttribute("d", pathFromPoints(trail));
-        this.writingTrace.setAttribute("stroke-width", (0.75 + this.writingSpeed * .56).toFixed(2));
-        this.writingTrace.setAttribute("opacity", (energy * (.22 + this.writingSpeed * .08) * entry).toFixed(3));
-        const echoOffset = 3 + this.writingSpeed * 4;
-        const echo = trail.map(sample => ({ x: sample.x + echoOffset, y: sample.y + 6 + this.writingSpeed * 4 }));
+        this.writingTrace.setAttribute("stroke-width", (0.9 + this.writingSpeed * .72).toFixed(2));
+        this.writingTrace.setAttribute("opacity", (energy * (.28 + this.writingSpeed * .12) * entry).toFixed(3));
+        const echoOffset = 3 + this.writingSpeed * 5;
+        const echo = trail.map(sample => ({ x: sample.x + echoOffset, y: sample.y + 5.5 + this.writingSpeed * 4.5 }));
         this.writingEcho.setAttribute("d", pathFromPoints(echo));
-        this.writingEcho.setAttribute("stroke-width", (1.2 + this.writingSpeed * 1.2).toFixed(2));
-        this.writingEcho.setAttribute("opacity", (energy * .28 * (1 - this.formBlend * .28) * entry).toFixed(3));
+        this.writingEcho.setAttribute("stroke-width", (1.35 + this.writingSpeed * 1.4).toFixed(2));
+        this.writingEcho.setAttribute("opacity", (energy * .31 * (1 - this.formBlend * .28) * entry).toFixed(3));
         this.writingParticles.forEach((particle, i) => {
-          const sample = trail[Math.max(0, trail.length - 1 - i * 3)] || trail[0];
+          const sample = trail[Math.max(0, trail.length - 1 - i * 4)] || trail[0];
           const age = stateTime - sample.t;
-          const fade = clamp(1 - age / .72);
+          const fade = clamp(1 - age / .92);
           particle.setAttribute("transform", `translate(${sample.x.toFixed(2)} ${sample.y.toFixed(2)}) rotate(${tangent.toFixed(1)})`);
-          particle.setAttribute("rx", (2.1 + this.writingSpeed * 2.2 - i * .24).toFixed(2));
-          particle.setAttribute("ry", (0.65 + this.writingSpeed * .42 - i * .08).toFixed(2));
-          particle.setAttribute("opacity", (fade * energy * (.42 - i * .075) * (1 - this.formBlend * .25) * entry).toFixed(3));
+          particle.setAttribute("rx", (2.45 + this.writingSpeed * 2.45 - i * .28).toFixed(2));
+          particle.setAttribute("ry", (0.72 + this.writingSpeed * .48 - i * .08).toFixed(2));
+          particle.setAttribute("opacity", (fade * energy * (.46 - i * .08) * (1 - this.formBlend * .25) * entry).toFixed(3));
         });
         const angle = -6 + Math.sin(strokePhase * Math.PI * 2) * 5;
         this.writingPencil.setAttribute("transform", `translate(${point.x.toFixed(2)} ${point.y.toFixed(2)}) rotate(${angle.toFixed(2)}) scale(1.16)`);
-        this.writingPencil.setAttribute("opacity", ((penDown ? .18 : .055) * (1 - this.formBlend * .42) * entry).toFixed(3));
+        this.writingPencil.setAttribute("opacity", ((penDown ? .24 : .08) * (1 - this.formBlend * .42) * entry).toFixed(3));
       } else if (state === "sending") {
         const duration = gesture.duration || 1.55;
         const prepEnd = gesture.prep || .18;
@@ -838,27 +840,27 @@
           y: origin.y - launchProgress * 36,
         };
         const direction = { x: 58 / 68.24, y: -36 / 68.24 };
-        const tailLength = 14 + launchVelocity * 34;
+        const tailLength = 20 + launchVelocity * 52;
         const trailStart = {
           x: end.x - direction.x * tailLength,
           y: end.y - direction.y * tailLength,
         };
         const trailVisible = stateTime >= prepEnd && stateTime < duration;
         const launchFade = stateTime < launchEnd ? .7 : 1 - clamp((stateTime - launchEnd) / Math.max(.01, duration - launchEnd));
-        const trailOpacity = trailVisible ? (.20 + launchVelocity * .34) * launchFade * entry : 0;
+        const trailOpacity = trailVisible ? (.24 + launchVelocity * .42) * launchFade * entry : 0;
         this.sendingTrail.setAttribute(
           "d",
           `M${trailStart.x.toFixed(2)} ${trailStart.y.toFixed(2)} C${(trailStart.x + direction.x * tailLength * .45).toFixed(2)} ${(trailStart.y + direction.y * tailLength * .45).toFixed(2)} ${(end.x - direction.x * 8).toFixed(2)} ${(end.y - direction.y * 8).toFixed(2)} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`,
         );
-        this.sendingTrail.setAttribute("stroke-width", (2.25 + launchVelocity * 3.2).toFixed(2));
-        this.sendingTrail.setAttribute("stroke-dasharray", `${(.34 + launchVelocity * .22).toFixed(3)} ${(0.66 - launchVelocity * .22).toFixed(3)}`);
+        this.sendingTrail.setAttribute("stroke-width", (2.65 + launchVelocity * 3.8).toFixed(2));
+        this.sendingTrail.setAttribute("stroke-dasharray", `${(.27 + launchVelocity * .19).toFixed(3)} ${(0.73 - launchVelocity * .19).toFixed(3)}`);
         this.sendingTrail.setAttribute("stroke-dashoffset", (-launchProgress - launchVelocity * .08).toFixed(3));
         this.sendingTrail.setAttribute("opacity", trailOpacity.toFixed(3));
         this.sendingTrailEcho.setAttribute(
           "d",
           `M${(trailStart.x - 2).toFixed(2)} ${(trailStart.y + 4).toFixed(2)} C${(trailStart.x + direction.x * tailLength * .5 - 2).toFixed(2)} ${(trailStart.y + direction.y * tailLength * .5 + 4).toFixed(2)} ${(end.x - direction.x * 7 - 2).toFixed(2)} ${(end.y - direction.y * 7 + 4).toFixed(2)} ${(end.x - 2).toFixed(2)} ${(end.y + 4).toFixed(2)}`,
         );
-        this.sendingTrailEcho.setAttribute("stroke-width", (0.9 + launchVelocity * 1.4).toFixed(2));
+        this.sendingTrailEcho.setAttribute("stroke-width", (1.05 + launchVelocity * 1.65).toFixed(2));
         this.sendingTrailEcho.setAttribute("stroke-dashoffset", (-launchProgress - .24).toFixed(3));
         this.sendingTrailEcho.setAttribute("opacity", (trailOpacity * .34).toFixed(3));
         this.sendingParticles.forEach((particle, i) => {
@@ -868,9 +870,9 @@
           const x = end.x - direction.x * i * (7 + launchVelocity * 8);
           const y = end.y - direction.y * i * (7 + launchVelocity * 8);
           particle.setAttribute("transform", `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(-20)`);
-          particle.setAttribute("rx", (3.2 + launchVelocity * 2.6 - i * .38).toFixed(2));
-          particle.setAttribute("ry", (1.35 + launchVelocity * .9 - i * .15).toFixed(2));
-          particle.setAttribute("opacity", (t > 0 && t < 1 ? (.28 + launchVelocity * .58) * (1 - i * .18) * launchFade * entry : 0).toFixed(3));
+          particle.setAttribute("rx", (3.65 + launchVelocity * 2.9 - i * .44).toFixed(2));
+          particle.setAttribute("ry", (1.45 + launchVelocity * 1.05 - i * .17).toFixed(2));
+          particle.setAttribute("opacity", (t > 0 && t < 1 ? (.32 + launchVelocity * .62) * (1 - i * .18) * launchFade * entry : 0).toFixed(3));
         });
         const ringAge = stateTime - prepEnd;
         const ringPhase = clamp(ringAge / .4);
